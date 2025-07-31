@@ -1,0 +1,686 @@
+openapi: 3.0.0
+info:
+  title: Vehicle Parking System API
+  description: A comprehensive parking management system with user authentication, parking lot management, and automated notifications
+  version: 1.0.0
+  contact:
+    email: nitesharya387@gmail.com
+
+servers:
+  - url: http://0.0.0.0:5001
+    description: Development server
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+                - license_no
+                - role
+              properties:
+                username:
+                  type: string
+                  maxLength: 80
+                email:
+                  type: string
+                  format: email
+                  maxLength: 120
+                password:
+                  type: string
+                license_no:
+                  type: string
+                  maxLength: 50
+                role:
+                  type: string
+                  enum: [user, admin]
+      responses:
+        201:
+          description: User created successfully
+        400:
+          description: Validation errors or username already exists
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        401:
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Logged out successfully
+
+  # User Parking APIs
+  /parking/user/history:
+    get:
+      tags:
+        - User Parking
+      summary: Get user's parking history
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: User parking history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reservation'
+
+  /parking/user/release/{reservation_id}:
+    put:
+      tags:
+        - User Parking
+      summary: Release a parking spot
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - parking_out_time
+              properties:
+                parking_out_time:
+                  type: string
+                  format: date-time
+      responses:
+        200:
+          description: Spot released successfully
+
+  /parking/user/available-lots:
+    get:
+      tags:
+        - User Parking
+      summary: Get available parking lots
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of available parking lots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParkingLot'
+
+  /parking/user/book:
+    post:
+      tags:
+        - User Parking
+      summary: Book a parking spot
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - lot_id
+                - vehicle_no
+              properties:
+                lot_id:
+                  type: integer
+                vehicle_no:
+                  type: string
+                  maxLength: 20
+      responses:
+        201:
+          description: Parking spot booked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+
+  /parking/me:
+    get:
+      tags:
+        - User Profile
+      summary: Get own user details
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    post:
+      tags:
+        - User Profile
+      summary: Edit own user details
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                license_no:
+                  type: string
+                password:
+                  type: string
+      responses:
+        200:
+          description: User details updated
+
+  /parking/user/export-csv:
+    post:
+      tags:
+        - User Parking
+      summary: Export user data to CSV (Async)
+      security:
+        - bearerAuth: []
+      responses:
+        202:
+          description: Export started, notification will be sent when ready
+
+  /parking/user/daily-reminder:
+    post:
+      tags:
+        - User Parking
+      summary: Trigger daily reminders and monthly reports (Async)
+      security:
+        - bearerAuth: []
+      responses:
+        202:
+          description: Tasks queued successfully
+
+  /parking/user/monthly-summary:
+    get:
+      tags:
+        - User Parking
+      summary: Get user's monthly parking summary
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Monthly summary data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  months:
+                    type: array
+                    items:
+                      type: string
+                  bookings:
+                    type: array
+                    items:
+                      type: integer
+                  spent:
+                    type: array
+                    items:
+                      type: number
+                  lots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        count:
+                          type: integer
+
+  # Admin Parking APIs
+  /parking/admin/spots/{lot_id}:
+    get:
+      tags:
+        - Admin Parking
+      summary: Get all spots in a parking lot
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lot_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: List of parking spots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParkingSpot'
+
+  /parking/admin/parking-lot:
+    post:
+      tags:
+        - Admin Parking
+      summary: Create a new parking lot
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prime_location_name
+                - address
+                - pincode
+                - price_per_hour
+                - available_spots
+              properties:
+                prime_location_name:
+                  type: string
+                address:
+                  type: string
+                pincode:
+                  type: string
+                price_per_hour:
+                  type: number
+                  format: float
+                available_spots:
+                  type: integer
+                is_active:
+                  type: boolean
+                  default: true
+      responses:
+        201:
+          description: Parking lot created successfully
+
+  /parking/admin/parking-lot/{lot_id}:
+    put:
+      tags:
+        - Admin Parking
+      summary: Edit parking lot details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lot_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                price_per_hour:
+                  type: number
+                  format: float
+                available_spots:
+                  type: integer
+      responses:
+        200:
+          description: Parking lot updated successfully
+    delete:
+      tags:
+        - Admin Parking
+      summary: Delete a parking lot
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lot_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Parking lot deleted successfully
+
+  /parking/admin/spot/{spot_id}:
+    delete:
+      tags:
+        - Admin Parking
+      summary: Delete a parking spot
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: spot_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Parking spot deleted successfully
+
+  /parking/admin/occupied-spots:
+    get:
+      tags:
+        - Admin Parking
+      summary: Get all currently occupied spots
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of occupied parking spots
+
+  /parking/admin/search:
+    get:
+      tags:
+        - Admin Parking
+      summary: Search reservations by criteria
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+        - name: parking_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reservation'
+
+  /parking/admin/users:
+    get:
+      tags:
+        - Admin Parking
+      summary: Get all registered users
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of all users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /parking/admin/parking-lots:
+    get:
+      tags:
+        - Admin Parking
+      summary: Get all parking lots with availability
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: List of all parking lots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/ParkingLot'
+                    - type: object
+                      properties:
+                        available_spots:
+                          type: integer
+
+  /parking/spot/{spot_id}:
+    get:
+      tags:
+        - General
+      summary: Get parking spot details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: spot_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Parking spot details
+
+  /parking/summary:
+    get:
+      tags:
+        - Admin Parking
+      summary: Get admin dashboard summary
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Dashboard summary statistics
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+          maxLength: 80
+        email:
+          type: string
+          format: email
+          maxLength: 120
+        license_no:
+          type: string
+          maxLength: 50
+        role:
+          type: string
+          enum: [user, admin]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ParkingLot:
+      type: object
+      properties:
+        id:
+          type: integer
+        prime_location_name:
+          type: string
+        address:
+          type: string
+        pincode:
+          type: string
+        price_per_hour:
+          type: number
+          format: float
+        available_spots:
+          type: integer
+        is_active:
+          type: boolean
+        created_by:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ParkingSpot:
+      type: object
+      properties:
+        id:
+          type: integer
+        lot_id:
+          type: integer
+        status:
+          type: string
+          enum: [AVAILABLE, OCCUPIED, MAINTENANCE, OUT_OF_ORDER]
+        remarks:
+          type: string
+          maxLength: 255
+        last_updated:
+          type: string
+          format: date-time
+        is_active:
+          type: boolean
+
+    Reservation:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        spot_id:
+          type: integer
+        parking_in_time:
+          type: string
+          format: date-time
+        parking_out_time:
+          type: string
+          format: date-time
+        total_cost:
+          type: number
+          format: float
+        duration_in_minutes:
+          type: integer
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, CANCELLED]
+        created_at:
+          type: string
+          format: date-time
+        vehicle_no:
+          type: string
+          maxLength: 20
+
+# Background Tasks (Celery)
+celery_tasks:
+  daily_reminders:
+    description: Sends daily parking reminders to users without reservations
+    schedule: "Every 60 seconds" # For demo, normally daily
+    trigger: "Celery Beat Scheduler"
+    
+  monthly_reports:
+    description: Generates and emails monthly parking activity reports
+    schedule: "Every 60 seconds" # For demo, normally monthly
+    trigger: "Celery Beat Scheduler"
+    template: "utils/templates/monthly_report.html"
+    
+  export_user_csv:
+    description: Exports user parking data to CSV and emails it
+    trigger: "API endpoint /parking/user/export-csv"
+    async: true
+
+# Configuration
+configuration:
+  database: "SQLite (db.sqlite3)"
+  cache: "Redis (localhost:6379/1)"
+  message_broker: "Redis (localhost:6379/0)"
+  email_service: "Gmail SMTP"
+  jwt_expiration:
+    access_token: "15 minutes"
+    refresh_token: "2 hours"
+  
+# Security
+security:
+  authentication: "JWT Bearer Token"
+  authorization: "Role-based (user/admin)"
+  password_hashing: "PBKDF2-SHA256"
+  cors: "Enabled for all origins"
+
+# Development Setup
+development:
+  host: "0.0.0.0"
+  port: 5001
+  debug: true
+  auto_reload: true
