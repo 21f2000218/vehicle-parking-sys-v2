@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; }
+    h2 { color: #007bff; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f8f9fa; }
+  </style>
+</head>
+<body>
+  <h2>Monthly Parking Report</h2>
+  <p>User: {{ summary.user_name }}</p>
+  <p>Month: {{ summary.month }}</p>
+  <p>Total Bookings: {{ summary.total_bookings }}</p>
+  <p>Total Spent: {{ summary.total_spent }}</p>
+  <table>
+    <tr>
+      <th>Lot Name</th>
+      <th>Bookings</th>
+      <th>Amount Spent</th>
+    </tr>
+    {% for lot in summary.lots %}
+    <tr>
+      <td>{{ lot.name }}</td>
+      <td>{{ lot.count }}</td>
+      <td>{{ lot.spent }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>
